@@ -46,10 +46,10 @@ turtlebot = {
   nextId = 1
 }
 
--- dofile(minetest.get_modpath("turtlebot").."/robogui.lua") -- gui stuff
--- dofile(minetest.get_modpath("turtlebot").."/commands.lua")
+local modPath = minetest.get_modpath("turtlebot")
 
-package.path = minetest.get_modpath("turtlebot") .. "/?.lua;" .. package.path
+package.path = modPath .. "/?.lua;".. package.path
+
 package.loaded.moonscript = require("moon-bundle")
 
 local moonscript = require("moonscript.base")
@@ -58,27 +58,56 @@ local compileMoonscript = require("moonscript.compile")
 
 local CompileMoonscriptToLua, check_code, preprocess_code, is_inside_string;
 
-function CompileMoonscriptToLua(script)
-	tree, err, pos = parseMoonscript.string(script)
+function CompileMoonscriptToLua(script, debugname)
+	local tree, err, pos = parseMoonscript.string(script)
 	if not tree then return nil, '[moonscript parser] '..err end
-	lua_code, err, lineNo, lineStr = compileMoonscript.tree(tree)
-	if not lua_code then return nil, '[moonscript compiler] '..err end
-	f, err = loadstring("local tostring = _G.tostring; "..lua_code)
+	local lua_code, err, lineNo, lineStr = compileMoonscript.tree(tree)
+  if not lua_code then return nil, '[moonscript compiler] '..err end
+	local f, err = loadstring(lua_code, debugname)
 	if err then return nil, '[lua parser] '..err end
 	return f, nil
 end
 
-local function CompileCode (script)
-	local ScriptFunc, CompileError = CompileMoonscriptToLua(script)
-	if CompileError then
-    return nil, CompileError
+local function CompileCode(script, debugname)
+	local scriptFunc, compileError = CompileMoonscriptToLua(script, debugname)
+	if compileError then
+    return nil, compileError
   end
-	return ScriptFunc, nil
+	return scriptFunc, nil
 end
 
+local function RunScript(script, environment, debugname)
+  local scriptFunc, compileError = CompileCode(script, debugname)
+  if compileError then
+    return nil, compileError
+  end
+  if environment ~= nil then
+    setfenv(scriptFunc, environment)
+  end
+  local success, rValue = pcall(scriptFunc)
+  minetest.debug("pcall", tostring(success), type(rValue), tostring(rValue))
+  if type(rValue) == "table" then
+    minetest.debug(#rValue)
+  end
+  if success then
+    return rValue, nil
+  else
+    return nil, rValue
+  end
+end
 
-dofile(minetest.get_modpath("turtlebot").."/spawner.lua")
-dofile(minetest.get_modpath("turtlebot").."/robot.lua")
+local function LoadScript(path)
+  local file, err = io.open(path)
+  if not file then return nil, err end
+  local code = assert(file:read("*a"))
+  file:close()
+  return code
+end
+
+RunScript(LoadScript(modPath.."/operations.moon"), nil, "operations.moon")
+RunScript(LoadScript(modPath.."/turtlebot.moon"), nil, "turtlebot.moon")
+dofile(modPath.."/spawner.lua")
+dofile(modPath.."/robot.lua")
 
 spawn_robot = function(pos)
 
@@ -87,7 +116,6 @@ spawn_robot = function(pos)
   local robotPos = { x = pos.x, y = pos.y + 1, z = pos.z } -- spawn robot on top of spawner
 
   local createData = function()
-    minetest.debug("createData ")
     local data = turtlebot.get(pos)
     if data then
       return data
@@ -96,7 +124,6 @@ spawn_robot = function(pos)
   end 
 
   local createObj = function()
-    minetest.debug("createObj ")
     local name = "Turtlebot " .. tostring(turtlebot.getId())
     local obj = minetest.add_entity(robotPos, "turtlebot:robot");
     obj:set_properties({infotext = name})
@@ -139,7 +166,7 @@ spawn_robot = function(pos)
   end
 
   local self = data.obj:get_luaentity()
-  --local bytecode, err = setCode(pos, self.code) -- compile code
+  local bytecode, err = setCode(pos, self.code) -- compile code
 	if err then
 		minetest.chat_send_player(owner, "#ROBOT CODE COMPILATION ERROR : " .. err) 
 		self.running = 0 -- stop execution

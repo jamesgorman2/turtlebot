@@ -1,12 +1,9 @@
-local next = next
-local type = type
-local copy = copy
 
-local empty: (t) => next(@operations) == nil
-local head: (t) => [i for i in *t[1,1]]
-local tail: (t) => [i for i in *t[2,]]
-local prepend: (i, t) => table.insert(copy(t), 1, i)
-local instanceOf(o, t) =>
+empty: (t) => next(t) == nil
+head: (t) => [i for i in *t[1,1]]
+tail: (t) => [i for i in *t[2,]]
+prepend: (i, t) => table.insert(copy(t), 1, i)
+instanceOf: (o, t) =>
   if type(o) == t
     true
   elseif o.__parent != nil
@@ -15,20 +12,20 @@ local instanceOf(o, t) =>
     false
 
 
-class Operation
+export class Operation
   new: (f) => @f = f
   exec: (t) => @f(t)
 
-local EmptyOperation = Operation(a => a)
-local EmptyOperationStream
+export EmptyOperation = Operation((a) => a)
+export EmptyOperationStream
 
-class OperationStream
+export class OperationStream
   -- returns (the next Operation, the new OperationsStream)
   next: => EmptyOperation, EmptyOperationStream
   
   complete: true
 
-  then: (o) =>
+  andThen: (o) =>
     lhs = self
     rhs = @@of(o)
     
@@ -48,31 +45,35 @@ class OperationStream
       o
     elseif type(o) == "table"
       for k, o in ipairs os
-        assert instanceOf(o, Operation) or instanceOf(o, OperationStream), "Expected Operation or OperationStream, got #{type o}"
-      ConcatOperationStream([if instanceOf(item, Operation) then SingleOperationStream(item) else item for i, item in ipairs o])
+        assert instanceOf(o, Operation) or instanceOf(o, OperationStream), 
+          "Expected Operation or OperationStream, got #{type o}"
+      ConcatOperationStream([OperationStream.of(item) for i, item in ipairs o])
     elseif type(o) == "function"
       SingleOperationStream(Operation(o))
     else
-      assert false "Expected one of Operation, OperationStream, table, or function, got #{type o}"
+      assert false, "Expected one of Operation, OperationStream, table, or function, got #{type o}"
   
-  @if: (f, a, b) =>
+  @concat: (a, b) =>
+    OperationStream.of({a, b})
+
+  @iff: (f, a, b) =>
     if type(f) != "function"
-      assert false "f must be a function, got #{type o}"
+      assert false, "f must be a function, got #{type o}"
     IfOperationStream(f, OperationStream.of(a), OperationStream.of(b))
 
-  @repeat: (o, count) =>
+  @repeatFor: (o, count) =>
     if type(count) != "number"
-      assert false "count must be a number, got #{type o}"
+      assert false, "count must be a number, got #{type o}"
     RepeatOperationStream(OperationStream.of(o), count)
    
   @repeatWhile: (o, f) =>
     if type(f) != "function"
-      assert false "f must be a function, got #{type o}"
+      assert false, "f must be a function, got #{type o}"
     RepeatWhileOperationStream(OperationStream.of(o), f)
     
   @repeatUntil: (o, f) =>
     if type(f) != "function"
-      assert false "f must be a function, got #{type o}"
+      assert false, "f must be a function, got #{type o}"
     RepeatUntilOperationStream(OperationStream.of(o), f)
    
 EmptyOperationStream = OperationStream!
@@ -168,3 +169,10 @@ class RepeatUntilOperationStream extends OperationStream
         nextOperation, EmptyOperationStream
       else 
         nextOperation, RepeatUntilOperationStream(@initialStream, @f)
+
+{
+  :Operation,
+  :EmptyOperation,
+  :OperationStream,
+  :EmptyOperationStream
+}

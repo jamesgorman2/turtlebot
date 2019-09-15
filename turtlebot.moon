@@ -1,6 +1,4 @@
-class Turtlebot
-  @start: Turtlebot!
-  
+export class Turtlebot
   material: "default:dirt"
   autoDig: false
   autoBuild: false
@@ -9,9 +7,10 @@ class Turtlebot
     @operations = operations
   
   next: =>
-    o, os = @operations.next!
+    o, os = @operations\next!
     o, Turtlebot(os)
 
-  then: (o) =>
-    Turtlebot @operations\then(o)
-  
+  andThen: (o) =>
+    Turtlebot @operations\andThen(o)
+
+{ :Turtlebot }

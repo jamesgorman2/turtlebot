@@ -60,14 +60,11 @@ on_receive_robot_form = function(pos, formname, fields, sender)
 	end
 
 	if fields.turtlebot_save then
-		minetest.debug("save", posToString(pos))
 		save()
 	elseif fields.turtlebot_spawn then
-		minetest.debug("spawn")
 		save()
 		activate(pos);
 	elseif fields.turtlebot_despawn then	
-		minetest.debug("despawn")
 		deactivate(pos)
 	end
 
