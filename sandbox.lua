@@ -1,67 +1,92 @@
 
-function getSandboxEnv(name)
+turtlebot.getSandboxEnv = function(spawnPos)
 
   local commands = turtlebot.commands;
   
-	local directions = {
-    left = 1, right = 2, forward = 3, backward = 4, up = 5, down = 6, 
-		left_down = 7, right_down = 8, forward_down = 9, backward_down = 10,
-		left_up = 11, right_up = 12, forward_up = 13,  backward_up = 14
-	}
-	
-  if not turtlebot.data[name].rom then turtlebot.data[name].rom = {} end -- create rom if not yet existing
-  
+	local directions = turtlebot.directions
+ 
 	local env = 
 	{
 		pcall = pcall,
-		robot_version = function() return turtlebot.version end,
 		
+		Turtlebot = Turtlebot,
+		Operation = Operation,
+		OperationStream = OperationStream,
+
 		turn = {
-			left = function() commands.turn(name, math.pi/2) end,
-			right = function() commands.turn(name, -math.pi/2) end,
-			angle = function(angle) commands.turn(name, angle*math.pi/180) end,
+			left = Operation.of(function() commands.turn(name, math.pi/2) end),
+			right = Operation.of(function() commands.turn(name, -math.pi/2) end),
+			angle = function(angle) 
+				return Operation.of(function() commands.turn(name, angle*math.pi/180) end)
+			end,
 		},
 		
-		pickup = function(r) -- pick up items around robot
-			return commands.pickup(r, name);
+		autoDig = function(b)
+			return Operation(
+				function(t)
+					return t:setAutoDig(b)
+				end
+			)
 		end,
-		
+
+		autoBuild = function(b)
+			return Operation(
+				function(t)
+					return t:setAutoBuild(b)
+				end
+			)
+		end,
+
+		material = function(m)
+			return Operation(
+				function(t)
+					return t:setMaterial(m)
+				end
+			)
+		end,
+
+		direction = {
+			North = 0,
+			South = 180,
+			East = 90,
+			West = 270
+		},
+
 		self = {
-			pos = function() return turtlebot.data[name].obj:getpos() end,
-			spawnpos = function() local pos = turtlebot.data[name].spawnpos; return {x=pos.x,y=pos.y,z=pos.z} end,
+			pos = function() return turtlebot.get(spawnPos).obj:getpos() end,
+			spawnpos = spawnPos,
 			name = function() return name end,
-			operations = function() return turtlebot.data[name].operations end,
-			viewdir = function() local yaw = turtlebot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
+			operations = function() return turtlebot.get(spawnPos).operations end,
+			facing = function() local yaw = turtlebot.get(spawnPos).obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
 			
 			set_properties = function(properties)
-				if not properties then return end; local obj = turtlebot.data[name].obj;
+				if not properties then return end; 
+				local obj = turtlebot.get(spawnPos).obj;
 				obj:set_properties(properties);
 			end,
 			
 			set_animation = function(anim_start,anim_end,anim_speed,anim_stand_start)
-				local obj = turtlebot.data[name].obj;
+				local obj = turtlebot.get(spawnPos).obj;
 				obj:set_animation({x=anim_start,y=anim_end}, anim_speed, anim_stand_start)
 			end,
 			
 			remove = function()
-				error("abort")
-				turtlebot.data[name].obj:remove();
-				turtlebot.data[name].obj=nil;
+				turtlebot.deactivate(spawnPos)
 			end,
 			
 			reset = function()
-				local pos = turtlebot.data[name].spawnpos; 
-				local obj = turtlebot.data[name].obj;
+				local pos = turtlebot.get(spawnPos).spawnpos; 
+				local obj = turtlebot.get(spawnPos).obj;
 				obj:setpos({x=pos.x,y=pos.y+1,z=pos.z}); obj:setyaw(0);
 			end,
 			
 			label = function(text)
-				local obj = turtlebot.data[name].obj;
+				local obj = turtlebot.get(spawnPos).obj;
 				obj:set_properties({nametag = text or ""}); -- "[" .. name .. "] " .. 
 			end,
 			
 			display_text = function(text,linesize,size)
-				local obj = turtlebot.data[name].obj;
+				local obj = turtlebot.get(spawnPos).obj;
 				return commands.display_text(obj,text,linesize,size)
 			end,
 			
@@ -70,16 +95,16 @@ function getSandboxEnv(name)
 		find_nodes = 
 			function(nodename,r) 
 				if r>8 then return false end
-				local q = minetest.find_node_near(turtlebot.data[name].obj:getpos(), r, nodename);
+				local q = minetest.find_node_near(turtlebot.get(spawnPos).obj:getpos(), r, nodename);
 				if q==nil then return false end
-				local p = turtlebot.data[name].obj:getpos()
+				local p = turtlebot.get(spawnPos).obj:getpos()
 				return math.sqrt((p.x-q.x)^2+(p.y-q.y)^2+(p.z-q.z)^2)
 			end, -- in radius around position
 		
 		find_player = 
-			function(r,pos) 
-				pos = pos or turtlebot.data[name].obj:getpos();
-				if r>10 then return false end
+			function(r, pos) 
+				pos = pos or turtlebot.get(spawnPos).obj:getpos();
+				if r > 10 then return false end
 				local objects =  minetest.get_objects_inside_radius(pos, r);
 				local plist = {};
 				for _,obj in pairs(objects) do
@@ -108,18 +133,16 @@ function getSandboxEnv(name)
 		},
 
     say = function(text, pname)
-			if not turtlebot.data[name].quiet_mode and not pname then
-				minetest.chat_send_all("<robot ".. name .. "> " .. text)
-				if not turtlebot.data[name].allow_spam then 
-					turtlebot.data[name].quiet_mode=true
+			if not turtlebot.get(spawnPos).quiet_mode and not pname then
+				minetest.chat_send_all("<robot ".. turtlebot.get(spawnPos).name .. "> " .. text)
+				if not turtlebot.get(spawnPos).allow_spam then 
+					turtlebot.get(spawnPos).quiet_mode=true
 				end
 			else
-				if not pname then pname = turtlebot.data[name].owner end
-				minetest.chat_send_player(pname,"<robot ".. name .. "> " .. text) -- send chat only to player pname
+				if not pname then pname = turtlebot.get(spawnPos).owner end
+				minetest.chat_send_player(pname, "<robot ".. turtlebot.get(spawnPos).name .. "> " .. text) -- send chat only to player pname
 			end
 		end,
-			
-		rom = turtlebot.data[name].rom,
 		
 		string = {
       byte = string.byte,
@@ -184,154 +207,65 @@ function getSandboxEnv(name)
 		deserialize = minetest.deserialize,
 		tonumber = tonumber, pairs = pairs,
 		ipairs = ipairs, error = error, type=type,
+		tostring = tostring
 	};
-	
-	-- ROBOT FUNCTIONS: move,dig, place,insert,take,check_inventory,activate,read_node,read_text,write_text
 	
 	env.move = {}; -- changes position of robot
 	for dir, dir_id in pairs(directions) do
-		env.move[dir]  =  function() return commands.move(name,dir_id) end
+		env.move[dir] = Operation(
+			function(t)
+				minetest.debug("sndmv", DumpTable(t))
+				if t.autoDig then
+					commands.dig(spawnPos, dir_id)
+				end
+				commands.move(spawnPos, dir_id) 
+				if t.autoBuild then
+					local opposite_dir = turtlebot.opposite_direction[dir_id]
+					commands.place(spawnPos, t.material, nil, opposite_dir)
+				end
+				return t
+			end
+		)
 	end
 	
 	env.dig = {};
 	for dir, dir_id in pairs(directions) do
-		env.dig[dir]  =  function() return commands.dig(name,dir_id) end
+		env.dig[dir] = Operation.of(function() commands.dig(spawnPos, dir_id) end)
 	end
 	
 	env.place = {};
 	for dir, dir_id in pairs(directions) do
-		env.place[dir] = function(nodename, param2) return commands.place(name,nodename, param2, dir_id) end
-	end
-	
-	env.insert = {}; -- insert item from robot inventory into another inventory
-	for dir, dir_id in pairs(directions) do
-		env.insert[dir] = function(item, inventory) return commands.insert_item(name,item, inventory,dir_id) end
-	end
-
-	env.take = {}; -- takes item from inventory and puts it in robot inventory
-	for dir, dir_id in pairs(directions) do
-		env.take[dir] = function(item, inventory) return commands.take_item(name,item, inventory,dir_id) end
-	end
-	
-	env.check_inventory = {};
-	for dir, dir_id in pairs(directions) do
-		env.check_inventory[dir] = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,dir_id) end
-	end
-	env.check_inventory.self = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,0) end;
-	
-	env.activate = {};
-	for dir, dir_id in pairs(directions) do
-		env.activate[dir] = function(mode) return commands.activate(name,mode, dir_id) end
+		env.place[dir] = function(nodename, param2) 
+			return Operation(
+				function(t) 
+					if nodename == nil then
+						nodename = t.material
+					end
+					commands.place(spawnPos, nodename, param2, dir_id) 
+					return t
+				end
+			) 
+		end
 	end
 	
 	env.read_node = {};
 	for dir, dir_id in pairs(directions) do
-		env.read_node[dir] = function() return commands.read_node(name,dir_id) end
+		env.read_node[dir] = function() return commands.read_node(spawnPos, dir_id) end
 	end
 	
-	env.read_text = {} -- returns text
-	for dir, dir_id in pairs(directions) do
-		env.read_text[dir] = function(stringname,mode) return commands.read_text(name,mode,dir_id,stringname) end
-	end
-	
-	env.write_text = {} -- returns text
-	for dir, dir_id in pairs(directions) do
-		env.write_text[dir] = function(text) return commands.write_text(name, dir_id,text) end
-	end
-			
-	if authlevel>=1 then -- robot privs
-	
-		env.self.sound = minetest.sound_play
-		env.self.sound_stop = minetest.sound_stop
-	
-		env.table = {
-			concat = table.concat,
-			insert = table.insert,
-			maxn = table.maxn,
-			remove = table.remove,
-			sort = table.sort,
-		}
-		
-		env.code.run = function(script)
-			if turtlebot.data[name].authlevel < 3 then
-				local err = check_code(script);
-				script = preprocess_code(script, turtlebot.call_limit[turtlebot.data[name].authlevel+1]);
-				if err then 
-					minetest.chat_send_player(name,"#ROBOT CODE CHECK ERROR : " .. err) 
-					return 
-				end
-			end
-			
-			local ScriptFunc, CompileError = CompileMoonscriptToLua( script )
-			if CompileError then
-				minetest.chat_send_player(name, "#code.run: compile error " .. CompileError )
-				return false
-			end
-		
-			setfenv( ScriptFunc, turtlebot.data[name].sandbox )
-		
-			local Result, RuntimeError = pcall( ScriptFunc );
-			if RuntimeError then
-				minetest.chat_send_player(name, "#code.run: run error " .. RuntimeError )
-				return false
-			end
-			return true
-		end
-		
-		env.self.read_form = function()
-			local fields = turtlebot.data[name].read_form;
-			local sender = turtlebot.data[name].form_sender;
-			turtlebot.data[name].read_form = nil; 
-			turtlebot.data[name].form_sender = nil; 
-			return sender,fields
-		end
-			
-		env.self.show_form = function(playername, form)
-			commands.show_form(name, playername, form)
-		end
-	end
-	
-	-- set up sandbox for puzzle
-		
-	if authlevel>=2 then -- puzzle privs
-		turtlebot.data[name].puzzle = {};
-		local data = turtlebot.data[name];
-		local pdata = data.puzzle;
-		pdata.triggerdata = {};
-		pdata.gamedata = {};
-		pdata.block_ids = {}
-		pdata.triggers = {};
-		env.puzzle = { -- puzzle functionality
-			set_node = function(pos,node) commands.puzzle.set_node(data,pos,node) end,
-			get_node = function(pos) return minetest.get_node(pos) end,
-			activate = function(mode,pos) commands.puzzle.activate(data,mode,pos) end,
-			get_meta = function(pos) return commands.puzzle.get_meta(data,pos) end,
-			get_gametime = function() return minetest.get_gametime() end,
-			get_node_inv = function(pos) return commands.puzzle.get_node_inv(data,pos) end,
-			get_player = function(pname) return commands.puzzle.get_player(data,pname) end,
-			chat_send_player = function(pname, text)	minetest.chat_send_player(pname or "", text)	end,
-			get_player_inv = function(pname) return commands.puzzle.get_player_inv(data,pname) end,
-			set_triggers = function(triggers) commands.puzzle.set_triggers(pdata,triggers) end, -- FIX THIS!
-			check_triggers = function(pname) 
-				local player = minetest.get_player_by_name(pname); if not player then return end
-				commands.puzzle.checkpos(pdata,player:getpos(),pname) 
-			end,
-			add_particle = function(def) minetest.add_particle(def) end,
-			count_objects = function(pos,radius) return #minetest.get_objects_inside_radius(pos, math.min(radius,5)) end,
-			pdata = pdata,
-			ItemStack = ItemStack,
-		}
-		
-	end
+	env.self.sound = minetest.sound_play
+	env.self.sound_stop = minetest.sound_stop
 
-	--special sandbox for admin
-	if authlevel<3 then -- is admin?
-		env._G = env;
-	else
-		env.minetest = minetest;
-		env._G =_G;
-		debug = debug;
-	end
+	env.table = {
+		concat = table.concat,
+		insert = table.insert,
+		maxn = table.maxn,
+		remove = table.remove,
+		sort = table.sort,
+	}
+
+	env.minetest = minetest;
+	env._G =_G;
 	
 	return env	
 end

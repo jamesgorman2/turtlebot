@@ -64,7 +64,8 @@ on_receive_robot_form = function(pos, formname, fields, sender)
 	elseif fields.turtlebot_spawn then
 		save()
 		activate(pos);
-	elseif fields.turtlebot_despawn then	
+	elseif fields.turtlebot_despawn then
+		save()
 		deactivate(pos)
 	end
 
