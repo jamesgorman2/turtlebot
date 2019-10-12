@@ -47,7 +47,9 @@ spawn_robot = function(pos)
   
   local self = data.obj:get_luaentity()
 
-	local turtle, err = RunScript(code, turtlebot.getSandboxEnv(pos), data.obj.name)
+	self.env = turtlebot.getSandboxEnv(pos)
+
+	local turtle, err = RunScript(code, self.env, data.obj.name)
 	if err then
 		minetest.chat_send_player(owner, "#TURTLEBOT CODE COMPILATION ERROR : " .. err) 
 		self.running = 0 -- stop execution
@@ -71,7 +73,7 @@ spawn_robot = function(pos)
   return data
 end
 
-minetest.register_entity("turtlebot:robot",{
+minetest.register_entity("turtlebot:robot", {
 	owner = "",
 	name = "",
 	hp_max = 100,
@@ -97,7 +99,7 @@ minetest.register_entity("turtlebot:robot",{
 			local data = turtlebot.data[staticdata]
 			
 			if not data or not data.obj or data.obj ~= self then
-				minetest.chat_send_all("#ROBOT INIT:  error. spawn robot again.")
+				minetest.chat_send_player(self.owner, "#ROBOT INIT:  error. spawn robot again.")
 				self.object:remove()
 				return;
 			end
@@ -125,9 +127,17 @@ minetest.register_entity("turtlebot:robot",{
 			local o, nextT = data.turtle:next()
 
 			if o ~= nil then
-				local t =  o:exec(nextT)
-				minetest.debug("STEP true keep going", o.__class.__name, DumpTable(o), DumpTable(t))
-				if t ~= nil then
+				local f = function()
+					return o:exec(nextT)
+				end
+
+				setfenv(f, self.env)
+				local success, t =  pcall(f)
+				
+				if not success then
+					minetest.chat_send_player(owner, "#TURTLEBOT ERROR : " .. tostring(t))
+				elseif t ~= nil then
+					minetest.debug("STEP true keep going", o.__class.__name, DumpTable(o), DumpTable(t), DumpTable(nextT))
 					data.turtle = t
 				end
 			end

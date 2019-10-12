@@ -80,22 +80,22 @@ export class OperationStream
     OperationStream.of({a, b})
 
   @iff: (f, a, b) ->
-    if Type.instanceOf(f, "function")
+    if not Type.instanceOf(f, "function")
       assert false, "f must be a function, got #{type o}"
     IfOperationStream(f, OperationStream.of(a), OperationStream.of(b))
 
   @repeatFor: (o, count) ->
-    if Type.instanceOf(count, "number")
-      assert false, "count must be a number, got #{type o}"
+    if not Type.instanceOf(count, "number")
+      assert false, "count must be a number, got #{type count}"
     RepeatOperationStream(OperationStream.of(o), count)
    
   @repeatWhile: (o, f) ->
-    if Type.instanceOf(f, "function")
+    if not Type.instanceOf(f, "function")
       assert false, "f must be a function, got #{type o}"
     RepeatWhileOperationStream(OperationStream.of(o), f)
     
   @repeatUntil: (o, f) ->
-    if Type.instanceOf(f, "function")
+    if not Type.instanceOf(f, "function")
       assert false, "f must be a function, got #{type o}"
     RepeatUntilOperationStream(OperationStream.of(o), f)
    

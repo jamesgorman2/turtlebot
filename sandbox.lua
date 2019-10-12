@@ -218,8 +218,8 @@ turtlebot.getSandboxEnv = function(spawnPos)
 				if t.autoDig then
 					commands.dig(spawnPos, dir_id)
 				end
-				commands.move(spawnPos, dir_id) 
-				if t.autoBuild then
+				local moved = commands.move(spawnPos, dir_id) 
+				if moved and t.autoBuild then
 					local opposite_dir = turtlebot.opposite_direction[dir_id]
 					commands.place(spawnPos, t.material, nil, opposite_dir)
 				end

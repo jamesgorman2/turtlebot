@@ -100,7 +100,8 @@ commands.move = function(spawnPos, dir)
   if minetest.registered_nodes[minetest.get_node(pos).name].walkable then return end
 	-- up; no levitation!
 	if minetest.get_node({x=pos.x,y=pos.y-1,z=pos.z}).name == "air" and
-		  minetest.get_node({x=pos.x,y=pos.y-2,z=pos.z}).name == "air" then 
+			minetest.get_node({x=pos.x,y=pos.y-2,z=pos.z}).name == "air" then 
+		minetest.chat_send_player(obj.owner, "Turtles can't fly")
 		return false
 	end
 
