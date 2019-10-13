@@ -1,3 +1,40 @@
+Turtlebot()\andThen({
+  move.up, 
+  place.down(), 
+  move.up, 
+  place.down()
+})
+
+----------------------------
+
+Turtlebot()\andThen({
+  move.up
+})\andThen({
+  place.down()
+})\andThen({
+  move.up
+})\andThen({
+  place.down()
+})
+
+----------------------------
+
+buildUp = OperationStream.of({
+  findNorth,
+  autoDig(true),
+  autoBuild(true),
+  material("default:stone")
+})\andThen(
+  OperationStream.repeatFor(
+    move.up,
+    20
+  )
+)
+
+Turtlebot()\andThen(buildUp)
+
+------------
+
 findNorth = OperationStream.repeatWhile(
   turn.left,
   -> self.facing != direction.North
@@ -27,32 +64,4 @@ buildWall = OperationStream.of({
 
 Turtlebot()\andThen(buildWall)
 
-----------------------------
 
-buildUp = OperationStream.of({
-  findNorth,
-  autoDig(true),
-  autoBuild(true),
-  material("default:stone")
-})\andThen(
-  OperationStream.repeatFor(
-    move.up,
-    20
-  )
-)
-
-Turtlebot()\andThen(buildUp)
-
-----------------------------
-
-Turtlebot()\andThen({move.up, place.down(), move.up, place.down()})
-
-
-buildUp = OperationStream.of({
-  findNorth,
-  autoDig(true),
-  autoBuild(true),
-  material("default:stone")
-})
-
-Turtlebot()\andThen(buildUp)

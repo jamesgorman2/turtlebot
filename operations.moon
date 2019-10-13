@@ -5,14 +5,38 @@ Array = {
     true
   head: (t) -> t[1]
   tail: (t) -> [i for i in *t[2,]]
-  prepend: (i, t) -> table.insert(copy(t), 1, i)
+  prepend: (i, t) ->
+    tNew = {k,v for k,v in pairs t}
+    table.insert(tNew, 1, i)
+    tNew
 }
+local Type
 Type = {
+  moonObject: (o) ->
+    type(o) == "table" and o.__class != nil and o.__class.__name != nil
+  moonClass: (o) ->
+    type(o) == "table" and o.__name != nil
+  name: (o) ->
+    if Type.moonObject(o)
+      o.__class.__name
+    elseif Type.moonClass(o)
+      o.__name
+    else
+      type(o)
+  parent: (o) ->
+    if Type.moonObject(o)
+      o.__class.__parent
+    elseif Type.moonClass(o)
+      o.__parent
+    else
+      nil
   instanceOf: (o, t) ->
-    if type(o) == t or (type(o) == "table" and o.__class and (o.__class.__name == t or (type(t) == "table" and o.__class.__name == t.__name)))
+    oName = Type.name(o)
+    tName = if Type.moonClass(t) or Type.moonObject(t) then Type.name(t) else t
+    if oName == tName
       true
-    elseif type(o) == "table" and o.__parent != nil
-      Type.instanceOf o.__parent, t
+    elseif type(o) == "table" and Type.parent(o) != nil
+      Type.instanceOf Type.parent(o), t
     else
       false
 }
@@ -20,19 +44,19 @@ Type = {
 export class Operation
   new: (f) => @f = f
   exec: (t) => 
-    minetest.debug("operation exec", DumpTable(t), DumpTable(@f))
+    print("operation exec", DumpTable(t), DumpTable(@f))
     self.f(t)
   @of: (o) ->
     if Type.instanceOf(o, Operation)
       o
     elseif Type.instanceOf(o, 'function')
       Operation((t) ->
-        minetest.debug("operation", DumpTable(t), DumpTable(o))
+        print("operation", DumpTable(t), DumpTable(o))
         o()
         t
       )
     else
-      assert false, "Expected one of Operation or function, got #{type o}"
+      assert false, "Expected one of Operation or function, got #{Type.name o}"
 
 export EmptyOperation = Operation((a) => a)
 export EmptyOperationStream
@@ -47,56 +71,58 @@ export class OperationStream
   andThen: (o) =>
     lhs = self
     rhs = OperationStream.of(o)
-    minetest.debug("andthen", lhs.__class.__name, rhs.__class.__name)
+    print("andthen", lhs.__class.__name, rhs.__class.__name)
     if lhs == EmptyOperationStream
+      print("andThen", "rhs only")
       rhs
     elseif rhs == EmptyOperationStream
+      print("andThen", "lhs only")
       lhs
     else
-      OperationStream.concat(rhs, lhs)
+      print("andThen", "concat")
+      OperationStream.concat(lhs, rhs)
    
   @empty: EmptyOperationStream
  
   @of: (o) -> 
     if Type.instanceOf(o, Operation)
-      minetest.debug("of Operation")
+      print("of Operation")
       SingleOperationStream(o)
     elseif Type.instanceOf(o, OperationStream)
-      minetest.debug("of OperationStream")
+      print("of OperationStream")
       o
     elseif Type.instanceOf(o, "table")
-      for k, o in ipairs os
-        assert Type.instanceOf(o, Operation) or Type.instanceOf(o, OperationStream), 
-          "Expected Operation or OperationStream, got #{type o}"
-      minetest.debug("of table", #os)
+      for k, item in ipairs o
+        assert Type.instanceOf(item, Operation) or Type.instanceOf(item, OperationStream), "Expected Operation or OperationStream, got #{Type.name item}"
+      print("of table", #o)
       ConcatOperationStream([OperationStream.of(item) for i, item in ipairs o])
     elseif Type.instanceOf(o, "function")
-      minetest.debug("of function")
+      print("of function")
       SingleOperationStream(Operation.of(o))
     else
-      assert false, "Expected one of Operation, OperationStream, table, or function, got #{type o}"
+      assert false, "Expected one of Operation, OperationStream, table, or function, got #{Type.name o}"
   
   @concat: (a, b) ->
     OperationStream.of({a, b})
 
   @iff: (f, a, b) ->
     if not Type.instanceOf(f, "function")
-      assert false, "f must be a function, got #{type o}"
+      assert false, "f must be a function, got #{Type.name o}"
     IfOperationStream(f, OperationStream.of(a), OperationStream.of(b))
 
   @repeatFor: (o, count) ->
     if not Type.instanceOf(count, "number")
-      assert false, "count must be a number, got #{type count}"
+      assert false, "count must be a number, got #{Type.name count}"
     RepeatOperationStream(OperationStream.of(o), count)
    
   @repeatWhile: (o, f) ->
     if not Type.instanceOf(f, "function")
-      assert false, "f must be a function, got #{type o}"
+      assert false, "f must be a function, got #{Type.name o}"
     RepeatWhileOperationStream(OperationStream.of(o), f)
     
   @repeatUntil: (o, f) ->
     if not Type.instanceOf(f, "function")
-      assert false, "f must be a function, got #{type o}"
+      assert false, "f must be a function, got #{Type.name o}"
     RepeatUntilOperationStream(OperationStream.of(o), f)
    
 EmptyOperationStream = OperationStream!
@@ -113,18 +139,18 @@ class ConcatOperationStream extends OperationStream
   complete: false
   next: =>
     if Array.empty(@streams) or Array.head(@streams) == nil
-      minetest.debug("ConcatOperationStream", "very empty", tostring(Array.empty(@streams)), tostring(Array.head(@streams)))
+      print("ConcatOperationStream", "very empty", tostring(Array.empty(@streams)), tostring(Array.head(@streams)))
       return EmptyOperation, EmptyOperationStream
     nextOperation, hNext = (Array.head @streams)\next!
     tNext = Array.tail @streams
     if not hNext.complete
-      minetest.debug("ConcatOperationStream", "still on head")
+      print("ConcatOperationStream", "still on head")
       nextOperation, ConcatOperationStream(Array.prepend(hNext, tNext))
     elseif not Array.empty tNext
-      minetest.debug("ConcatOperationStream", "head complete")
+      print("ConcatOperationStream", "head complete")
       nextOperation, ConcatOperationStream(tNext)
     else
-      minetest.debug("ConcatOperationStream", "complete")
+      print("ConcatOperationStream", "complete")
       nextOperation, EmptyOperationStream
 
 class IfOperationStream extends OperationStream
