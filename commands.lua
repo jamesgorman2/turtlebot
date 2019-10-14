@@ -92,8 +92,8 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 end
 
 commands.move = function(spawnPos, dir)
-	minetest.debug("move", dir)
-	local obj = turtlebot.get(spawnPos).obj;
+	local turtle = turtlebot.get(spawnPos);
+	local obj = turtle.obj;
 	local pos = pos_in_dir(obj, dir)
 		
 	-- can move through walkable nodes
@@ -101,7 +101,7 @@ commands.move = function(spawnPos, dir)
 	-- up; no levitation!
 	if minetest.get_node({x=pos.x,y=pos.y-1,z=pos.z}).name == "air" and
 			minetest.get_node({x=pos.x,y=pos.y-2,z=pos.z}).name == "air" then 
-		minetest.chat_send_player(obj.owner, "Turtles can't fly")
+		minetest.chat_send_player(turtle.owner, "Turtles can't fly")
 		return false
 	end
 
@@ -121,7 +121,6 @@ commands.turn = function (spawnPos, angle)
 end
 
 commands.dig = function(spawnPos, dir)
-	minetest.debug("dig", dir)
 	local obj = turtlebot.get(spawnPos).obj;
 	local pos = pos_in_dir(obj, dir)	
 	
@@ -155,7 +154,6 @@ commands.read_node = function(spawnPos, dir)
 end
 
 commands.place = function(spawnPos, nodename, param2, dir)
-	minetest.debug("place", nodename, dir)
 	local obj = turtlebot.get(spawnPos).obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();

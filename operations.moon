@@ -58,7 +58,7 @@ export class Operation
     else
       assert false, "Expected one of Operation or function, got #{Type.name o}"
 
-export EmptyOperation = Operation((a) => a)
+export EmptyOperation = Operation((a) -> a)
 export EmptyOperationStream
 local ConcatOperationStream, IfOperationStream, SingleOperationStream, RepeatOperationStream, RepeatUntilOperationStream, RepeatWhileOperationStream
 
@@ -107,7 +107,7 @@ export class OperationStream
 
   @iff: (f, a, b) ->
     if not Type.instanceOf(f, "function")
-      assert false, "f must be a function, got #{Type.name o}"
+      assert false, "f must be a function, got #{Type.name f}"
     IfOperationStream(f, OperationStream.of(a), OperationStream.of(b))
 
   @repeatFor: (o, count) ->
@@ -117,12 +117,12 @@ export class OperationStream
    
   @repeatWhile: (o, f) ->
     if not Type.instanceOf(f, "function")
-      assert false, "f must be a function, got #{Type.name o}"
+      assert false, "f must be a function, got #{Type.name f}"
     RepeatWhileOperationStream(OperationStream.of(o), f)
     
   @repeatUntil: (o, f) ->
     if not Type.instanceOf(f, "function")
-      assert false, "f must be a function, got #{Type.name o}"
+      assert false, "f must be a function, got #{Type.name f}"
     RepeatUntilOperationStream(OperationStream.of(o), f)
    
 EmptyOperationStream = OperationStream!
@@ -138,19 +138,21 @@ class ConcatOperationStream extends OperationStream
   new: (streams) => @streams = streams
   complete: false
   next: =>
+    minetest.debug("ConcatOperationStream", tostring(#@streams), DumpTable(@streams))
     if Array.empty(@streams) or Array.head(@streams) == nil
-      print("ConcatOperationStream", "very empty", tostring(Array.empty(@streams)), tostring(Array.head(@streams)))
+      minetest.debug("ConcatOperationStream", "very empty", tostring(Array.empty(@streams)), tostring(Array.head(@streams)))
       return EmptyOperation, EmptyOperationStream
     nextOperation, hNext = (Array.head @streams)\next!
     tNext = Array.tail @streams
     if not hNext.complete
-      print("ConcatOperationStream", "still on head")
+      minetest.debug("ConcatOperationStream", "still on head", DumpTable(hNext))
+      minetest.debug("ConcatOperationStream", "--", DumpTable(tNext))
       nextOperation, ConcatOperationStream(Array.prepend(hNext, tNext))
     elseif not Array.empty tNext
-      print("ConcatOperationStream", "head complete")
+      minetest.debug("ConcatOperationStream", "head complete", tostring(#tNext))
       nextOperation, ConcatOperationStream(tNext)
     else
-      print("ConcatOperationStream", "complete")
+      minetest.debug("ConcatOperationStream", "complete")
       nextOperation, EmptyOperationStream
 
 class IfOperationStream extends OperationStream
@@ -185,31 +187,37 @@ class RepeatOperationStream extends OperationStream
       else 
         nextOperation, RepeatOperationStream(@initialStream, @count - 1)
 
-  class RepeatWhileOperationStream extends OperationStream
-    -- stream: a single stream
-    -- f: function returning a boolean
-    -- initialStream: internal use only
-    new: (stream, f, initialStream) => 
-      @stream = stream
-      @f = f
-      @initialStream = if initialStream != nil then initialStream else stream
-    complete: false
-    next: =>
-      nextOperation, nextStream = @stream\next!
-  
-      if not nextStream.complete
-        nextOperation, RepeatWhileOperationStream(nextStream, @f, @initialStream)
-      elseif nextStream.complete
-        if @f!
-          nextOperation, RepeatWhileOperationStream(@initialStream, @f)
-        else 
-          nextOperation, EmptyOperationStream
-
+class RepeatWhileOperationStream extends OperationStream
+  -- stream: a single stream
+  -- f: function returning a boolean
+  -- initialStream: internal use only; the seed stream
+  -- skipTest: internal use only; true if we are draining the stream within a loop
+  new: (stream, f, initialStream, skipTest) => 
+    @stream = stream
+    @f = f
+    @initialStream = if initialStream != nil then initialStream else stream
+    @skipTest = if skipTest != nil then skipTest else false
+  complete: false
+  next: =>
+    minetest.debug("while", tostring(@skipTest), tostring(@f!))
+    if @skipTest or @f!
+      minetest.debug("while", "next stream")
+      nextOperation, nextStream = @stream\next!  
+      if nextStream.complete
+        minetest.debug("while", "stream complete")
+        nextOperation, RepeatWhileOperationStream(@initialStream, @f)
+      else
+        minetest.debug("while", "stream continue")
+        nextOperation, RepeatWhileOperationStream(nextStream, @f, @initialStream, true)
+    else 
+      minetest.debug("while","complete")
+      EmptyOperation, EmptyOperationStream
+      
 class RepeatUntilOperationStream extends OperationStream
   -- stream: a single stream
   -- f: function returning a boolean
-  -- initialStream: internal use only
-  new: (stream, f, initialStream) => 
+  -- initialStream: internal use only; the seed stream
+  new: (stream, f, initialStream, skipTest) => 
     @stream = stream
     @f = f
     @initialStream = if initialStream != nil then initialStream else stream
@@ -224,7 +232,7 @@ class RepeatUntilOperationStream extends OperationStream
         nextOperation, EmptyOperationStream
       else 
         nextOperation, RepeatUntilOperationStream(@initialStream, @f)
-
+      
 {
   :Operation,
   :EmptyOperation,

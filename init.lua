@@ -44,7 +44,8 @@ turtlebot = {
 		if data and data.obj then
 			data.obj:remove();
       data.obj = nil;
-		end 
+    end
+    update_form(pos);
   end,
   getId = function()
     local id = turtlebot.nextId

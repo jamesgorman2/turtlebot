@@ -135,16 +135,19 @@ minetest.register_entity("turtlebot:robot", {
 				local success, t =  pcall(f)
 				
 				if not success then
-					minetest.chat_send_player(owner, "#TURTLEBOT ERROR : " .. tostring(t))
+					if owner then
+						minetest.chat_send_player(owner, "#TURTLEBOT ERROR : " .. tostring(t))
+					else
+						minetest.chat_send_all("#TURTLEBOT ERROR : " .. tostring(t))
+					end
 				elseif t ~= nil then
-					minetest.debug("STEP true keep going", o.__class.__name, DumpTable(o), DumpTable(t), DumpTable(nextT))
 					data.turtle = t
+				else
+					minetest.debug("on_step", "nil next stream")
 				end
 			end
 
 			if nextT:complete() then
-				minetest.debug("STEP true done")
-
 				self.running = 0
 				self.object:remove()
 				turtlebot.deactivate(self.spawnpos)

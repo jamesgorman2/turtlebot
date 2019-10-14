@@ -1,3 +1,4 @@
+-- A short tower
 Turtlebot()\andThen({
   move.up, 
   place.down(), 
@@ -6,7 +7,7 @@ Turtlebot()\andThen({
 })
 
 ----------------------------
-
+-- Command composition
 Turtlebot()\andThen({
   move.up
 })\andThen({
@@ -18,9 +19,8 @@ Turtlebot()\andThen({
 })
 
 ----------------------------
-
+-- A tall tower using a loop
 buildUp = OperationStream.of({
-  findNorth,
   autoDig(true),
   autoBuild(true),
   material("default:stone")
@@ -34,34 +34,37 @@ buildUp = OperationStream.of({
 Turtlebot()\andThen(buildUp)
 
 ------------
-
-findNorth = OperationStream.repeatWhile(
+-- Build a wall
+findDirection = (dir) -> OperationStream.repeatWhile(
   turn.left,
-  -> self.facing != direction.North
+  -> self.facing() != dir
 )
 
 aboutFace = OperationStream.of({turn.left, turn.left})
 
-buildSingleCourse = OperationStream.repeat(
+buildSingleCourse = (width) -> OperationStream.repeatFor(
     move.forward,
-    10
+    width
   )
 
-buildWall = OperationStream.of({
-  findNorth,
+buildWall = (dir, width, height) -> OperationStream.of({
+  findDirection(dir),
   autoDig(true),
   autoBuild(true),
   material("default:stone")
 })\andThen(
   OperationStream.repeatFor(
-    buildSingleCourse\andThen({
+    buildSingleCourse(width)\andThen({
+      place.down(), -- since we're floating!
       move.up, 
       aboutFace
     }),
-    4
+    height
   )
 )
 
-Turtlebot()\andThen(buildWall)
+Turtlebot()\andThen(
+  buildWall(direction.South, 10, 4)
+)
 
 

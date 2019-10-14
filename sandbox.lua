@@ -14,10 +14,10 @@ turtlebot.getSandboxEnv = function(spawnPos)
 		OperationStream = OperationStream,
 
 		turn = {
-			left = Operation.of(function() commands.turn(name, math.pi/2) end),
-			right = Operation.of(function() commands.turn(name, -math.pi/2) end),
+			left = Operation.of(function() commands.turn(spawnPos, math.pi/2) end),
+			right = Operation.of(function() commands.turn(spawnPos, -math.pi/2) end),
 			angle = function(angle) 
-				return Operation.of(function() commands.turn(name, angle*math.pi/180) end)
+				return Operation.of(function() commands.turn(spawnPos, angle*math.pi/180) end)
 			end,
 		},
 		
@@ -57,7 +57,18 @@ turtlebot.getSandboxEnv = function(spawnPos)
 			spawnpos = spawnPos,
 			name = function() return name end,
 			operations = function() return turtlebot.get(spawnPos).operations end,
-			facing = function() local yaw = turtlebot.get(spawnPos).obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
+			facing = function()
+				local yaw = turtlebot.get(spawnPos).obj:getyaw()*180/math.pi
+				yaw = yaw + 0.5 - (yaw + 0.5) % 1 -- round half up
+				while yaw > 360 do
+					yaw = yaw - 360
+				end
+				while yaw < 0 do
+					yaw = yaw + 360
+				end
+				minetest.debug("facing", tostring(yaw))
+				return math.floor(yaw)
+			end,
 			
 			set_properties = function(properties)
 				if not properties then return end; 
@@ -214,7 +225,6 @@ turtlebot.getSandboxEnv = function(spawnPos)
 	for dir, dir_id in pairs(directions) do
 		env.move[dir] = Operation(
 			function(t)
-				minetest.debug("sndmv", DumpTable(t))
 				if t.autoDig then
 					commands.dig(spawnPos, dir_id)
 				end
